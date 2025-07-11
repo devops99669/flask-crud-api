@@ -1,189 +1,150 @@
-Here's a complete step-by-step guide to create a Flask CRUD API with:
+# Flask CRUD API CI/CD with Jenkins, Docker & Docker Hub
 
-✅ Flask REST API
-✅ Dockerfile to containerize the app
-✅ Swagger UI using flasgger (optional)
-✅ Postman support
-✅ Python-based file storage (no DB to keep it simple)
+## ✅ Overview
 
-📁 Project Structure
-Copy
-Edit
+This document provides a complete, well-formatted, and visually clean step-by-step guide to automate deployment of a **Flask CRUD API** using **Docker**, integrated with **Jenkins CI/CD pipeline**, and **Docker Hub**.
+
+---
+
+## 🔧 Project Setup Summary
+
+* **App**: Flask CRUD API (with Swagger docs optionally)
+* **Version Control**: GitHub
+* **Containerization**: Docker
+* **CI/CD**: Jenkins
+* **Registry**: Docker Hub
+* **Notification (Optional)**: Gmail SMTP
+
+---
+
+## ⌚ Pipeline Stages in Jenkins
+
+### 1. 🗂️ Checkout Code
+
+* Pulls the latest code from GitHub:
+
+  ```bash
+  git clone https://github.com/devops99669/flask-crud-api.git
+  ```
+
+### 2. ✅ Build Docker Image
+
+* Build Docker image from the Dockerfile:
+
+  ```bash
+  docker build -t devops99669/flask-crud-api .
+  ```
+
+### 3. 🔐 Login to Docker Hub
+
+* Use `docker login` with username/password:
+
+  ```bash
+  echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  ```
+
+  * Store credentials securely in Jenkins credentials manager.
+
+### 4. 📤 Push Docker Image
+
+* Push the built image to Docker Hub:
+
+  ```bash
+  docker push devops99669/flask-crud-api
+  ```
+
+### 5. 🛑 Stop & Remove Existing Container
+
+* Clean up old containers (if any):
+
+  ```bash
+  docker stop flask-api-container || true
+  docker rm flask-api-container || true
+  ```
+
+### 6. 🔎 Free Port 5000
+
+* Ensure port 5000 is free:
+
+  ```bash
+  fuser -n tcp -k 5000 || true
+  ```
+
+### 7. 🚀 Run New Container
+
+* Run the latest image:
+
+  ```bash
+  docker run -d -p 5000:5000 --name flask-api-container devops99669/flask-crud-api
+  ```
+
+### 8. 📧 Gmail Notifications (Optional)
+
+* Configure Jenkins email plugin:
+
+  * SMTP: `smtp.gmail.com`
+  * Port: `587`
+  * Requires TLS + App Password (from Google security settings)
+
+---
+
+## 📁 Project Structure (GitHub)
+
+```bash
 flask-crud-api/
 ├── app.py
+├── Dockerfile
 ├── requirements.txt
-└── Dockerfile
-✅ app.py – Flask CRUD API
-python
-Copy
-Edit
-from flask import Flask, request, jsonify
-from flasgger import Swagger
+├── test_app.py
+├── Jenkinsfile (if pipeline as code)
+```
 
-app = Flask(__name__)
-Swagger(app)  # Swagger UI at http://localhost:5000/apidocs
+---
 
-data_store = {}  # key-value store: id -> record
+## ⚙️ Jenkins Configuration
 
-@app.route('/')
-def index():
-    return "Welcome to Flask CRUD API"
+* **Type**: Freestyle or Pipeline project
+* **SCM**: Git (GitHub Repo URL)
+* **Build Triggers**:
 
-@app.route('/items', methods=['POST'])
-def create_item():
-    """
-    Create a new item
-    ---
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          id: Item
-          required:
-            - id
-            - name
-          properties:
-            id:
-              type: string
-            name:
-              type: string
-    responses:
-      201:
-        description: Item created
-    """
-    item = request.get_json()
-    data_store[item['id']] = item
-    return jsonify({"message": "Item created"}), 201
+  * Poll SCM or GitHub Webhook (`http://<jenkins-ip>/github-webhook/`)
+* **Build Steps**: Execute shell script with all stages
+* **Credentials**: Set up Docker Hub credentials securely
+* **Post-build Actions**: Email notifications (optional)
 
-@app.route('/items', methods=['GET'])
-def get_all_items():
-    """Get all items
-    ---
-    responses:
-      200:
-        description: A list of items
-    """
-    return jsonify(list(data_store.values()))
+---
 
-@app.route('/items/<item_id>', methods=['GET'])
-def get_item(item_id):
-    """Get item by ID
-    ---
-    parameters:
-      - in: path
-        name: item_id
-        required: true
-        type: string
-    responses:
-      200:
-        description: The item
-      404:
-        description: Item not found
-    """
-    item = data_store.get(item_id)
-    if item:
-        return jsonify(item)
-    return jsonify({"error": "Item not found"}), 404
+## 🔹 Final Output
 
-@app.route('/items/<item_id>', methods=['PUT'])
-def update_item(item_id):
-    """Update item by ID
-    ---
-    parameters:
-      - in: path
-        name: item_id
-        required: true
-        type: string
-      - in: body
-        name: body
-        schema:
-          properties:
-            name:
-              type: string
-    responses:
-      200:
-        description: Updated item
-    """
-    if item_id not in data_store:
-        return jsonify({"error": "Item not found"}), 404
-    data_store[item_id].update(request.get_json())
-    return jsonify(data_store[item_id])
+Once complete:
 
-@app.route('/items/<item_id>', methods=['DELETE'])
-def delete_item(item_id):
-    """Delete item by ID
-    ---
-    parameters:
-      - in: path
-        name: item_id
-        required: true
-        type: string
-    responses:
-      200:
-        description: Deletion status
-    """
-    if item_id in data_store:
-        del data_store[item_id]
-        return jsonify({"message": "Item deleted"})
-    return jsonify({"error": "Item not found"}), 404
+* App runs on: `http://<your-server-ip>:5000`
+* Docker image: `https://hub.docker.com/r/devops99669/flask-crud-api`
+* Jenkins: Shows full log & build success/failure
+* Email: Receives notification on job status (if configured)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-✅ requirements.txt
-txt
-Copy
-Edit
-flask
-flasgger
-✅ Dockerfile
-Dockerfile
-Copy
-Edit
-# Use official Python image
-FROM python:3.10-slim
+---
 
-# Set working directory
-WORKDIR /app
+## 📆 Future Enhancements
 
-# Copy files
-COPY . .
+* Add Swagger UI for API docs
+* Add Pytest for unit testing
+* Publish code coverage report
+* Add Slack integration for notifications
+* Deploy to Kubernetes/GCP Cloud Run
 
-# Install dependencies
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+---
 
-# Expose port
-EXPOSE 5000
+## ✨ Benefits
 
-# Run the app
-CMD ["python", "app.py"]
-✅ Build & Run with Docker
-bash
-Copy
-Edit
-# Build the image
-docker build -t flask-crud-api .
+| Feature            | Benefit                               |
+| ------------------ | ------------------------------------- |
+| Dockerized App     | Portable, consistent deployment       |
+| Jenkins CI/CD      | Automated build & deploy              |
+| Docker Hub Push    | Shared image for all environments     |
+| Email Notification | Build success/failure alerts to inbox |
+| GitHub Integration | Real-time trigger on push             |
 
-# Run the container
-docker run -d -p 5000:5000 --name my_crud flask-crud-api
-✅ Test with Postman or Swagger
-🔗 Open browser: http://localhost:5000/apidocs → Swagger UI
+---
 
-Or use Postman with the following endpoints:
-
-Method	Endpoint	Description
-POST	/items	Create item
-GET	/items	Get all items
-GET	/items/<id>	Get item by ID
-PUT	/items/<id>	Update item
-DELETE	/items/<id>	Delete item
-
-✅ Example POST Body (JSON)
-json
-Copy
-Edit
-{
-  "id": "1",
-  "name": "Laptop"
-}
+**End of Document**
